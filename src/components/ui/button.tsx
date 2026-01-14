@@ -5,7 +5,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium ring-offset-background transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -15,12 +15,24 @@ const buttonVariants = cva(
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        // Premium gradient button
+        gradient: "gradient-bg text-primary-foreground font-semibold hover:opacity-90 hover:-translate-y-0.5 glow-purple",
+        // Glass button for dark backgrounds
+        glass: "glass hover:bg-[hsl(var(--glass-bg-hover))] text-foreground border-[hsl(var(--glass-border))]",
+        // Glass with gradient border on hover
+        "glass-gradient": "glass text-foreground hover:border-primary/50 hover:-translate-y-0.5 hover:glow-purple",
+        // Hero CTA button - primary gradient with intense glow
+        hero: "gradient-bg text-primary-foreground font-bold hover:-translate-y-1 animate-gradient-shift",
+        // Hero secondary - glass with visible border
+        "hero-secondary": "glass text-foreground font-semibold hover:bg-[hsl(var(--glass-bg-hover))] hover:-translate-y-1",
       },
       size: {
         default: "h-10 px-4 py-2",
         sm: "h-9 rounded-md px-3",
-        lg: "h-11 rounded-md px-8",
+        lg: "h-11 rounded-xl px-8",
+        xl: "h-14 rounded-2xl px-10 text-base",
         icon: "h-10 w-10",
+        "icon-lg": "h-14 w-14 rounded-full",
       },
     },
     defaultVariants: {
