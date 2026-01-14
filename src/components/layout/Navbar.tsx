@@ -2,6 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Menu, X } from "lucide-react";
 import { useState } from "react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -18,7 +19,7 @@ export function Navbar() {
       <div className="glass rounded-full px-6 py-3 flex items-center justify-between">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2 group">
-          <div className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center group-hover:glow-purple transition-all duration-300">
+          <div className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center group-hover:glow-primary transition-all duration-300">
             <Sparkles className="w-4 h-4 text-primary-foreground" />
           </div>
           <span className="font-bold text-xl gradient-text hidden sm:block">
@@ -34,7 +35,7 @@ export function Navbar() {
               to={link.href}
               className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
                 location.pathname === link.href
-                  ? "bg-[hsl(var(--glass-bg-hover))] text-foreground"
+                  ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:text-foreground hover:bg-[hsl(var(--glass-bg))]"
               }`}
             >
@@ -43,8 +44,9 @@ export function Navbar() {
           ))}
         </div>
 
-        {/* CTA Button */}
-        <div className="flex items-center gap-3">
+        {/* CTA + Theme Toggle */}
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
           <Button
             variant="gradient"
             size="sm"
@@ -79,7 +81,7 @@ export function Navbar() {
                 onClick={() => setMobileMenuOpen(false)}
                 className={`px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 ${
                   location.pathname === link.href
-                    ? "bg-[hsl(var(--glass-bg-hover))] text-foreground"
+                    ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:text-foreground hover:bg-[hsl(var(--glass-bg))]"
                 }`}
               >
