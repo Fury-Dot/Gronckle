@@ -1,8 +1,11 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Menu, X } from "lucide-react";
+import { Menu, X, LogOut } from "lucide-react";
 import { useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { DragonLogo } from "@/components/chat/gklogo";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -13,16 +16,27 @@ const navLinks = [
 export function Navbar() {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      setMobileMenuOpen(false);
+      navigate("/login");
+      toast.success("Signed out successfully");
+    } catch (error) {
+      toast.error("Failed to sign out");
+    }
+  };
 
   return (
     <nav className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-5xl">
       <div className="glass rounded-full px-6 py-3 flex items-center justify-between">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2 group">
-          <div className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center group-hover:glow-primary transition-all duration-300">
-            <Sparkles className="w-4 h-4 text-primary-foreground" />
-          </div>
-          <span className="font-bold text-xl gradient-text hidden sm:block">
+          <DragonLogo className="w-8 h-8 transition-transform duration-300 group-hover:scale-110" />
+          <span className="font-bold text-xl tracking-tight gradient-text hidden sm:block">
             GRONCKLE
           </span>
         </Link>
@@ -47,16 +61,28 @@ export function Navbar() {
         {/* CTA + Theme Toggle */}
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <Button
-            variant="gradient"
-            size="sm"
-            className="rounded-full hidden sm:flex"
-            asChild
-          >
-            <Link to="/gems">
-              Explore Gems
-            </Link>
-          </Button>
+          {user ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="rounded-full hidden sm:flex"
+              onClick={handleSignOut}
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign Out
+            </Button>
+          ) : (
+            <Button
+              variant="gradient"
+              size="sm"
+              className="rounded-full hidden sm:flex"
+              asChild
+            >
+              <Link to="/gems">
+                Explore Gems
+              </Link>
+            </Button>
+          )}
 
           {/* Mobile Menu Button */}
           <Button
@@ -88,15 +114,26 @@ export function Navbar() {
                 {link.label}
               </Link>
             ))}
-            <Button
-              variant="gradient"
-              className="mt-2 rounded-full"
-              asChild
-            >
-              <Link to="/gems" onClick={() => setMobileMenuOpen(false)}>
-                Explore Gems
-              </Link>
-            </Button>
+            {user ? (
+              <Button
+                variant="outline"
+                className="mt-2 rounded-full w-full"
+                onClick={handleSignOut}
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Sign Out
+              </Button>
+            ) : (
+              <Button
+                variant="gradient"
+                className="mt-2 rounded-full"
+                asChild
+              >
+                <Link to="/gems" onClick={() => setMobileMenuOpen(false)}>
+                  Explore Gems
+                </Link>
+              </Button>
+            )}
           </div>
         </div>
       )}

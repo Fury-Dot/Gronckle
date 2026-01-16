@@ -1,21 +1,55 @@
 import { useState, useMemo } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { GemCard } from "@/components/gems/GemCard";
+import { GemCard, Gem } from "@/components/gems/GemCard";
 import { AIChatbot } from "@/components/chat/AIChatbot";
-import { gems, categories } from "@/data/gems";
-import { Search, X, SlidersHorizontal } from "lucide-react";
+import { categories } from "@/data/gems";
+import { Search, X, SlidersHorizontal, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { createClient } from "@/lib/supabase/client";
+import { DragonLogo } from "@/components/chat/gklogo";
 
 type SortOption = "popular" | "newest" | "most-liked";
 type TypeFilter = "all" | "free" | "open-source";
 
 export default function GemsPage() {
+  const supabase = createClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [sortBy, setSortBy] = useState<SortOption>("popular");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [showFilters, setShowFilters] = useState(false);
+
+  const queryClient = useQueryClient();
+
+  const { data: gems = [], isLoading } = useQuery({
+    queryKey: ["gems"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("gems")
+        .select("*");
+      if (error) throw error;
+      return data as Gem[];
+    },
+  });
+
+  const likeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error } = await supabase.rpc("handle_gem_like", {
+        gem_id: id,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gems"] });
+    },
+  });
+
+  const handleLike = (id: string) => {
+    likeMutation.mutate(id);
+  };
 
   const filteredGems = useMemo(() => {
     let result = [...gems];
@@ -57,7 +91,7 @@ export default function GemsPage() {
     }
 
     return result;
-  }, [searchQuery, selectedCategory, sortBy, typeFilter]);
+  }, [gems, searchQuery, selectedCategory, sortBy, typeFilter]);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -67,9 +101,12 @@ export default function GemsPage() {
       <section className="pt-32 pb-8 px-4 relative">
         <div className="absolute inset-0 gradient-bg opacity-5" />
         <div className="container mx-auto max-w-3xl relative z-10">
-          <h1 className="text-3xl sm:text-4xl font-bold text-center mb-6">
-            Discover <span className="gradient-text">Hidden Gems</span>
-          </h1>
+          <div className="flex items-center justify-center gap-3 mb-6">
+            <DragonLogo className="w-10 h-10" />
+            <h1 className="text-3xl sm:text-4xl font-bold text-center">
+              Discover <span className="gradient-text">Hidden Gems</span>
+            </h1>
+          </div>
 
           {/* Search Bar */}
           <div className="relative">
@@ -196,7 +233,11 @@ export default function GemsPage() {
 
             {/* Gems Grid */}
             <main className="flex-1">
-              {filteredGems.length > 0 ? (
+              {isLoading ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+              ) : filteredGems.length > 0 ? (
                 <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-6">
                   {filteredGems.map((gem, index) => (
                     <div
@@ -204,7 +245,7 @@ export default function GemsPage() {
                       className="opacity-0 animate-fade-in-up"
                       style={{ animationDelay: `${index * 0.05}s`, animationFillMode: "forwards" }}
                     >
-                      <GemCard gem={gem} />
+                      <GemCard gem={gem} onLike={handleLike} />
                     </div>
                   ))}
                 </div>

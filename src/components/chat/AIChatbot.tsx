@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Sparkles, X, Send, Trash2 } from "lucide-react";
+import { X, Send, Trash2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { ColoredDragonLogo } from "./gklogo";
 
 interface Message {
   role: "user" | "assistant";
@@ -15,12 +17,13 @@ const examplePrompts = [
 ];
 
 export function AIChatbot() {
+  const supabase = createClient();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
       content:
-        "Hi! I'm the GRONCKLE AI assistant. I can help you discover the perfect development tools. What are you trying to accomplish today?",
+        "Hi! I'm the GRONCKLE AI assistant. I can help you discover the perfect development tools from our curated collection. What are you trying to accomplish today?",
     },
   ]);
   const [input, setInput] = useState("");
@@ -44,38 +47,108 @@ export function AIChatbot() {
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
     setIsLoading(true);
 
-    // Simulate AI response (replace with actual API call when backend is connected)
-    setTimeout(() => {
-      const responses: Record<string, string> = {
-        diagram:
-          "**Excalidraw** - Perfect for quick hand-drawn style diagrams!\nIt's free, open-source, and works right in your browser. Great for architecture diagrams and flowcharts.\n\n**Mermaid** - If you prefer code-based diagrams, Mermaid lets you create diagrams using markdown-like syntax.",
-        api:
-          "**Insomnia** - A beautiful REST client that's free and open-source. Great for API testing and debugging.\n\n**HTTPie** - A command-line HTTP client that's more user-friendly than curl.",
-        image:
-          "**TinyPNG** - Compresses PNG and JPEG images with minimal quality loss. Free for up to 500 images/month.\n\n**Squoosh** - Google's image compression tool that runs entirely in your browser.",
-        color:
-          "**Coolors** - The super fast color palette generator! Press spacebar to generate new palettes instantly.\n\n**Happy Hues** - Curated color palettes with real-world examples of how to use them.",
-      };
+    try {
+      // Special commands
+      if (userMessage.toLowerCase().includes("show all") || userMessage.toLowerCase().includes("all tools")) {
+        const { data: allGems } = await supabase.from("gems").select("*");
+        const response = `We have ${allGems?.length || 0} amazing tools! Visit the main Gems page to browse all of them, or tell me what you're looking for! 🔍`;
+        setMessages((prev) => [...prev, { role: "assistant", content: response }]);
+        setIsLoading(false);
+        return;
+      }
 
-      const lowerMessage = userMessage.toLowerCase();
-      let response =
-        "I'd be happy to help you find the right tool! Could you tell me more about what you're trying to accomplish? For example:\n\n• What type of project are you working on?\n• Are you looking for free or paid tools?\n• Any specific features you need?";
+      // Fetch all gems
+      const { data: allGems, error } = await supabase.from("gems").select("*");
+      if (error) throw error;
 
-      if (lowerMessage.includes("diagram") || lowerMessage.includes("draw"))
-        response = responses.diagram;
-      else if (lowerMessage.includes("api") || lowerMessage.includes("test"))
-        response = responses.api;
-      else if (
-        lowerMessage.includes("image") ||
-        lowerMessage.includes("compress")
-      )
-        response = responses.image;
-      else if (lowerMessage.includes("color") || lowerMessage.includes("palette"))
-        response = responses.color;
+      const queryLower = userMessage.toLowerCase();
+
+      // 🎯 SMART INTENT DETECTION
+      const intent = detectIntent(queryLower);
+      
+      const scoredGems = (allGems || []).map(gem => {
+        let score = 0;
+
+        // 🔥 INTENT-BASED SCORING
+        if (intent.category && gem.category === intent.category) {
+          score += 20;
+        }
+
+        if (intent.specificTool && gem.name.toLowerCase() === intent.specificTool) {
+          score += 50;
+        }
+
+        // 🔥 KEYWORD SCORING
+        intent.keywords.forEach(keyword => {
+          const nameLower = gem.name.toLowerCase();
+          const descLower = gem.description.toLowerCase();
+          
+          if (nameLower === keyword) score += 15;
+          else if (nameLower.includes(keyword)) score += 10;
+          
+          if (descLower.includes(keyword)) score += 5;
+          
+          if (gem.tags?.some((tag: string) => tag.toLowerCase() === keyword)) score += 8;
+          else if (gem.tags?.some((tag: string) => tag.toLowerCase().includes(keyword))) score += 4;
+        });
+
+        if (gem.featured) score += 2;
+
+        return { ...gem, score };
+      })
+      .filter(gem => gem.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3);
+
+      // Generate response
+      let response = "";
+      if (scoredGems.length > 0) {
+        const topScore = scoredGems[0].score;
+        const matchQuality = topScore > 20 ? "🎯 Perfect match!" : topScore > 10 ? "✨ Great match" : "💡 Might help";
+
+        response = `${matchQuality}\n\n` +
+          scoredGems.map((gem, idx) => {
+            return `**${idx + 1}. ${gem.name}** ${gem.featured ? '⭐' : ''}\n${gem.description}\n📂 ${gem.category} ${gem.stars ? `| ⭐ ${gem.stars}` : ''}\n🔗 [Visit ${gem.name}](${gem.url})`;
+          }).join("\n\n");
+      } else {
+        response = `I couldn't find a perfect match for "${userMessage}" 😕\n\n💡 **Try asking:**\n• "grammar checker"\n• "design tools"\n• "AI tools"\n• Type "show all tools" to browse everything!`;
+      }
 
       setMessages((prev) => [...prev, { role: "assistant", content: response }]);
+    } catch (error: unknown) {
+      setMessages((prev) => [...prev, { 
+        role: "assistant", 
+        content: "Oops! Something went wrong 😅 Please try again later!" 
+      }]);
+      console.error("Chat error:", error);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
+  };
+
+  const renderContent = (content: string) => {
+    const parts = content.split(/(\*\*.*?\*\*|\[.*?\]\(.*?\))/g);
+    return parts.map((part, i) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return <strong key={i}>{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith("[") && part.includes("](")) {
+        const linkText = part.match(/\[(.*?)\]/)?.[1];
+        const url = part.match(/\((.*?)\)/)?.[1];
+        return (
+          <a
+            key={i}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary underline hover:text-primary/80 transition-colors inline-flex items-center gap-1"
+          >
+            {linkText}
+          </a>
+        );
+      }
+      return part;
+    });
   };
 
   const handleExampleClick = (prompt: string) => {
@@ -87,8 +160,7 @@ export function AIChatbot() {
     setMessages([
       {
         role: "assistant",
-        content:
-          "Chat cleared! What would you like to find today?",
+        content: "Chat cleared! What would you like to find today?",
       },
     ]);
   };
@@ -102,7 +174,6 @@ export function AIChatbot() {
 
   return (
     <>
-      {/* Floating Button */}
       <button
         onClick={() => setIsOpen(true)}
         className={`fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full gradient-bg flex items-center justify-center transition-all duration-300 hover:scale-110 animate-pulse-glow ${
@@ -110,97 +181,59 @@ export function AIChatbot() {
         }`}
         aria-label="Open AI Assistant"
       >
-        <Sparkles className="w-6 h-6 text-primary-foreground" />
+        <ColoredDragonLogo className="w-8 h-8" />
       </button>
 
-      {/* Chat Overlay */}
       {isOpen && (
         <div className="fixed bottom-6 right-6 z-50 w-96 h-[500px] max-w-[calc(100vw-3rem)] max-h-[calc(100vh-6rem)] glass rounded-2xl flex flex-col overflow-hidden animate-slide-in-right border border-primary/20">
-          {/* Header */}
           <div className="gradient-bg px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-primary-foreground" />
+              <ColoredDragonLogo className="w-6 h-6" />
               <div>
-                <h3 className="font-bold text-primary-foreground">
-                  Gem Finder AI
-                </h3>
-                <p className="text-xs text-primary-foreground/80">
-                  Ask me to find the perfect tool
-                </p>
+                <h3 className="font-bold text-primary-foreground">Gem Finder AI</h3>
+                <p className="text-xs text-primary-foreground/80">Ask me to find tools</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10"
-                onClick={handleClear}
-              >
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-primary-foreground/80 hover:text-primary-foreground" onClick={handleClear}>
                 <Trash2 className="w-4 h-4" />
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10"
-                onClick={() => setIsOpen(false)}
-              >
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-primary-foreground/80 hover:text-primary-foreground" onClick={() => setIsOpen(false)}>
                 <X className="w-4 h-4" />
               </Button>
             </div>
           </div>
 
-          {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {messages.map((message, index) => (
-              <div
-                key={index}
-                className={`flex ${
-                  message.role === "user" ? "justify-end" : "justify-start"
-                }`}
-              >
-                <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-2 ${
-                    message.role === "user"
-                      ? "gradient-bg text-primary-foreground rounded-br-sm"
-                      : "bg-muted text-foreground rounded-bl-sm"
-                  }`}
-                >
-                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+              <div key={index} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[85%] rounded-2xl px-4 py-2 ${message.role === "user" ? "gradient-bg text-primary-foreground" : "bg-muted text-foreground"}`}>
+                  <div className="text-sm whitespace-pre-wrap">{renderContent(message.content)}</div>
                 </div>
               </div>
             ))}
             {isLoading && (
               <div className="flex justify-start">
-                <div className="bg-muted rounded-2xl rounded-bl-sm px-4 py-2">
-                  <div className="flex gap-1">
-                    <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" />
-                    <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce [animation-delay:0.1s]" />
-                    <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce [animation-delay:0.2s]" />
-                  </div>
+                <div className="bg-muted rounded-2xl px-4 py-2 flex gap-1">
+                  <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" />
+                  <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce [animation-delay:0.1s]" />
+                  <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce [animation-delay:0.2s]" />
                 </div>
               </div>
             )}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Example Prompts */}
           {messages.length <= 2 && (
-            <div className="px-4 pb-2">
-              <div className="flex flex-wrap gap-2">
-                {examplePrompts.map((prompt) => (
-                  <button
-                    key={prompt}
-                    onClick={() => handleExampleClick(prompt)}
-                    className="text-xs px-3 py-1.5 rounded-full glass hover:bg-[hsl(var(--glass-bg-hover))] text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {prompt}
-                  </button>
-                ))}
-              </div>
+            <div className="px-4 pb-2 flex flex-wrap gap-2">
+              {examplePrompts.map((prompt) => (
+                <button key={prompt} onClick={() => handleExampleClick(prompt)} className="text-xs px-3 py-1.5 rounded-full glass text-muted-foreground hover:text-foreground">
+                  {prompt}
+                </button>
+              ))}
             </div>
           )}
 
-          {/* Input */}
           <div className="p-4 border-t border-border">
             <div className="flex items-end gap-2">
               <textarea
@@ -209,16 +242,10 @@ export function AIChatbot() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Describe what you need..."
-                className="flex-1 min-h-[44px] max-h-24 px-4 py-3 rounded-xl glass bg-transparent resize-none text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="flex-1 min-h-[44px] max-h-24 px-4 py-3 rounded-xl glass bg-transparent resize-none text-sm focus:outline-none"
                 rows={1}
               />
-              <Button
-                variant="gradient"
-                size="icon"
-                className="h-11 w-11 rounded-xl shrink-0"
-                onClick={handleSend}
-                disabled={!input.trim() || isLoading}
-              >
+              <Button variant="gradient" size="icon" className="h-11 w-11 rounded-xl" onClick={handleSend} disabled={!input.trim() || isLoading}>
                 <Send className="w-4 h-4" />
               </Button>
             </div>
@@ -227,4 +254,37 @@ export function AIChatbot() {
       )}
     </>
   );
+}
+
+function detectIntent(query: string) {
+  const intent: { category: string | null; keywords: string[]; specificTool: string | null; } = {
+    category: null,
+    keywords: [],
+    specificTool: null,
+  };
+
+  const categories = {
+    'Writing': ['spelling', 'grammar', 'grammarly', 'write', 'writing', 'editor', 'text', 'proofread'],
+    'Design': ['design', 'draw', 'drawing', 'sketch', 'diagram', 'wireframe', 'color', 'palette', 'mockup', 'ui', 'ux'],
+    'Development': ['code', 'coding', 'developer', 'programming', 'api', 'github', 'terminal', 'debug', 'test'],
+    'Image Processing': ['image', 'photo', 'compress', 'resize', 'background', 'remove', 'png', 'jpg'],
+    'AI Tools': ['ai', 'gpt', 'chatbot', 'intelligence'],
+    'Productivity': ['productivity', 'organize', 'notes', 'task', 'todo', 'planner', 'focus'],
+    'Data & Analytics': ['data', 'analytics', 'chart', 'graph', 'visualization', 'metrics'],
+    'Marketing': ['marketing', 'email', 'campaign', 'newsletter', 'seo']
+  };
+
+  for (const [cat, kws] of Object.entries(categories)) {
+    if (kws.some(kw => query.includes(kw))) {
+      intent.category = cat;
+      intent.keywords.push(...kws.filter(kw => query.includes(kw)));
+    }
+  }
+
+  if (!intent.category) {
+    const stopWords = ['i', 'need', 'a', 'for', 'the', 'to', 'help', 'me', 'find', 'tool', 'tools', 'want', 'looking'];
+    intent.keywords = query.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(word => word.length > 2 && !stopWords.includes(word));
+  }
+
+  return intent;
 }
