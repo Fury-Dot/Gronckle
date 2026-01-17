@@ -1,16 +1,4 @@
-                                                                              GRONCKLE 
-# Clone the repository
-git clone <YOUR_GIT_URL>
-
-# Move into the project directory
-cd <YOUR_PROJECT_NAME>
-
-# Install dependencies
-npm install
-
-# Start the development server
-npm run dev
-=======
+#                                                                  GRONCKLE
 
 ## How can I edit this code?
 
